@@ -1,4 +1,4 @@
-const axios = require('axios');
+import axios from 'axios';
 
 const WEBHOOK_URL = 'http://localhost:3000/webhook';
 
@@ -19,62 +19,66 @@ const testCases = [
         }
     },
     {
-        name: 'Informações sobre produto',
+        name: 'Buscar médicos disponíveis',
         data: {
             queryResult: {
                 intent: {
-                    displayName: 'Product Information'
+                    displayName: 'Get Available Doctors'
                 },
                 parameters: {
-                    product: 'smartphone'
+                    date: '2024-01-15'
                 },
-                fulfillmentText: 'Quero saber sobre smartphones'
+                fulfillmentText: 'Quero ver médicos disponíveis'
             },
             session: 'projects/test-project/agent/sessions/123456'
         }
     },
     {
-        name: 'Consulta de preço',
+        name: 'Ver horários de médico',
         data: {
             queryResult: {
                 intent: {
-                    displayName: 'Price Query'
+                    displayName: 'Get Doctor Schedules'
                 },
                 parameters: {
-                    product: 'laptop'
+                    doctor_name: 'Dr. João Silva',
+                    date: '2024-01-15'
                 },
-                fulfillmentText: 'Qual o preço do laptop?'
+                fulfillmentText: 'Quero ver horários do Dr. João Silva'
             },
             session: 'projects/test-project/agent/sessions/123456'
         }
     },
     {
-        name: 'Suporte técnico',
+        name: 'Agendar consulta',
         data: {
             queryResult: {
                 intent: {
-                    displayName: 'Technical Support'
+                    displayName: 'Book Appointment'
                 },
                 parameters: {
-                    issue: 'problema com a tela'
-                },
-                fulfillmentText: 'Preciso de ajuda com problema na tela'
-            },
-            session: 'projects/test-project/agent/sessions/123456'
-        }
-    },
-    {
-        name: 'Agendamento',
-        data: {
-            queryResult: {
-                intent: {
-                    displayName: 'Schedule Appointment'
-                },
-                parameters: {
+                    doctor_name: 'Dr. João Silva',
                     date: '2024-01-15',
-                    time: '14:30'
+                    time: '09:00',
+                    patient_name: 'Maria Santos',
+                    patient_phone: '11999999999'
                 },
-                fulfillmentText: 'Quero agendar para 15 de janeiro às 14:30'
+                fulfillmentText: 'Quero agendar com Dr. João Silva'
+            },
+            session: 'projects/test-project/agent/sessions/123456'
+        }
+    },
+    {
+        name: 'Cancelar agendamento',
+        data: {
+            queryResult: {
+                intent: {
+                    displayName: 'Cancel Appointment'
+                },
+                parameters: {
+                    appointment_id: '1'
+                },
+                fulfillmentText: 'Quero cancelar meu agendamento'
             },
             session: 'projects/test-project/agent/sessions/123456'
         }
@@ -101,7 +105,7 @@ async function testWebhook() {
         try {
             console.log(`Testando: ${testCase.name}`);
             console.log(`Enviando:`, JSON.stringify(testCase.data, null, 2));
-
+            
             const response = await axios.post(WEBHOOK_URL, testCase.data, {
                 headers: {
                     'Content-Type': 'application/json'
@@ -111,7 +115,7 @@ async function testWebhook() {
 
             console.log(`Resposta recebida:`, JSON.stringify(response.data, null, 2));
             console.log('─'.repeat(80));
-
+            
         } catch (error) {
             console.error(`Erro no teste "${testCase.name}":`, error.message);
             if (error.response) {
@@ -134,8 +138,32 @@ async function testHealthCheck() {
     }
 }
 
+async function testDoctorsEndpoint() {
+    try {
+        console.log('Testando endpoint de médicos...');
+        const response = await axios.get('http://localhost:3000/doctors/available?date=2024-01-15');
+        console.log('Médicos disponíveis:', response.data);
+    } catch (error) {
+        console.error('Erro ao buscar médicos:', error.message);
+    }
+}
+
+async function testSchedulesEndpoint() {
+    try {
+        console.log('Testando endpoint de horários...');
+        const response = await axios.get('http://localhost:3000/schedules/available?doctor_id=1&date=2024-01-15');
+        console.log('Horários disponíveis:', response.data);
+    } catch (error) {
+        console.error('Erro ao buscar horários:', error.message);
+    }
+}
+
 async function runTests() {
     await testHealthCheck();
+    console.log('\n');
+    await testDoctorsEndpoint();
+    console.log('\n');
+    await testSchedulesEndpoint();
     console.log('\n');
     await testWebhook();
 }

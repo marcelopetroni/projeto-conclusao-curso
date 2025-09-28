@@ -1,0 +1,42 @@
+import DoctorService from '../services/doctor.js';
+
+class DoctorController {
+    constructor() {
+        this.doctorService = new DoctorService();
+    }
+
+    async getAvailableDoctors(req, res) {
+        try {
+            const { date } = req.query;
+            const doctors = await this.doctorService.getAvailableDoctors(date);
+            res.status(200).json({
+                success: true,
+                data: doctors
+            });
+        } catch (error) {
+            res.status(500).json({
+                success: false,
+                error: error.message || 'Erro ao buscar médicos disponíveis'
+            });
+        }
+    }
+
+    async getDoctorSchedules(req, res) {
+        try {
+            const { doctor_id } = req.params;
+            const { date } = req.query;
+            const schedules = await this.doctorService.getDoctorSchedules(doctor_id, date);
+            res.status(200).json({
+                success: true,
+                data: schedules
+            });
+        } catch (error) {
+            res.status(500).json({
+                success: false,
+                error: error.message || 'Erro ao buscar horários do médico'
+            });
+        }
+    }
+}
+
+export default DoctorController;
