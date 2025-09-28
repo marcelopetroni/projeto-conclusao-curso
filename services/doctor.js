@@ -1,4 +1,5 @@
-import { Doctor, Schedule } from '../models/index.js';
+import Doctor from '../models/Doctor.js';
+import Schedule from '../models/Schedule.js';
 
 class DoctorService {
     constructor() {

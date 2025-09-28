@@ -11,5 +11,4 @@ const db = {
     Schedule
 };
 
-export { Doctor, Schedule, sequelize };
 export default db;
