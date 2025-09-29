@@ -9,6 +9,7 @@ export default class ScheduleRoutes {
 
     setup() {
         this.router.get('/available', this.scheduleController.getAvailableSchedules.bind(this.scheduleController));
+        this.router.post('/', this.scheduleController.createSchedule.bind(this.scheduleController));
         this.router.post('/:schedule_id/book', this.scheduleController.bookSchedule.bind(this.scheduleController));
         this.router.put('/:schedule_id/cancel', this.scheduleController.cancelSchedule.bind(this.scheduleController));
         return this.router;

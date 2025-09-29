@@ -7,8 +7,7 @@ class DoctorController {
 
     async getAvailableDoctors(req, res) {
         try {
-            const { date } = req.query;
-            const doctors = await this.doctorService.getAvailableDoctors(date);
+            const doctors = await this.doctorService.getAvailableDoctors();
             res.status(200).json({
                 success: true,
                 data: doctors
@@ -21,11 +20,11 @@ class DoctorController {
         }
     }
 
-    async getDoctorSchedules(req, res) {
+    async getDoctorAvailableSchedules(req, res) {
         try {
             const { doctor_id } = req.params;
             const { date } = req.query;
-            const schedules = await this.doctorService.getDoctorSchedules(doctor_id, date);
+            const schedules = await this.doctorService.getDoctorAvailableSchedules(doctor_id, date);
             res.status(200).json({
                 success: true,
                 data: schedules
@@ -33,7 +32,7 @@ class DoctorController {
         } catch (error) {
             res.status(500).json({
                 success: false,
-                error: error.message || 'Erro ao buscar horários do médico'
+                error: error.message || 'Erro ao buscar horários disponíveis do médico'
             });
         }
     }

@@ -26,7 +26,8 @@ class WebhookService {
 	}
 
 	async handleIntent(intentName, parameters) {
-		return intentName === 'List All Doctors' ? this.handleListAllDoctors()
+		return intentName === 'Agendamento' ? this.handleListAllDoctors()
+			: intentName === 'List All Doctors' ? this.handleListAllDoctors()
 			: intentName === 'Get Doctor Schedules' ? this.handleGetSchedules(parameters)
 			: intentName === 'Book Appointment' ? this.handleBookAppointment(parameters)
 			: intentName === 'Cancel Appointment' ? this.handleCancelAppointment(parameters)
@@ -40,7 +41,8 @@ class WebhookService {
 			return 'Nenhum médico cadastrado.'
 		}
 
-		return doctors.map(d => `• ${d.name} - ${d.specialty} (ID: ${d.id})`).join('\n')
+		return `Perfeito! Aqui estão os médicos disponíveis. Digite o número correspondente para escolher:\n\n` +
+  		doctors.map((d, index) => `${index + 1}. ${d.name} - ${d.specialty}`).join('\n')
 	}
 
 	async handleGetSchedules(parameters) {

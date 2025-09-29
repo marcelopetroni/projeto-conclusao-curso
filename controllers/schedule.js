@@ -53,6 +53,37 @@ class ScheduleController {
             });
         }
     }
+
+    async createSchedule(req, res) {
+        try {
+            const { doctor_id, date, time, status } = req.body;
+
+            if (!doctor_id || !date || !time) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'doctor_id, date e time são obrigatórios'
+                });
+            }
+
+            const schedule = await this.scheduleService.createSchedule({
+                doctor_id,
+                date,
+                time,
+                status: status || 'available'
+            });
+
+            res.status(201).json({
+                success: true,
+                data: schedule,
+                message: 'Horário criado com sucesso'
+            });
+        } catch (error) {
+            res.status(500).json({
+                success: false,
+                error: error.message || 'Erro ao criar horário'
+            });
+        }
+    }
 }
 
 export default ScheduleController;

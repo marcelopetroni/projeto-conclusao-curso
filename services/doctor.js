@@ -7,27 +7,11 @@ class DoctorService {
         this.Schedule = Schedule;
     }
 
-    async getAvailableDoctors(date) {
-        const doctors = await this.Doctor.findAll({
+    async getAvailableDoctors() {
+        return this.Doctor.findAll({
             where: { active: true },
-            include: [{
-                model: this.Schedule,
-                as: 'schedules',
-                where: {
-                    date: date,
-                    status: 'available'
-                },
-                required: true
-            }]
+            order: [['name', 'ASC']]
         });
-
-        return doctors.map(doctor => ({
-            id: doctor.id,
-            name: doctor.name,
-            specialty: doctor.specialty,
-            email: doctor.email,
-            phone: doctor.phone
-        }));
     }
 
     async getAllAvailableDoctors() {
@@ -52,6 +36,7 @@ class DoctorService {
         if (!doctor) {
             throw new Error('Médico não encontrado');
         }
+
         return doctor;
     }
 
@@ -67,25 +52,19 @@ class DoctorService {
         return doctor;
     }
 
-    async getDoctorSchedules(doctorId, date) {
+    async getDoctorAvailableSchedules(doctorId, date) {
         const doctor = await this.getDoctorById(doctorId);
 
         const schedules = await this.Schedule.findAll({
             where: {
                 doctor_id: doctorId,
-                date: date
+                date: date,
+                status: 'available'
             },
             order: [['time', 'ASC']]
         });
 
-        return schedules.map(schedule => ({
-            id: schedule.id,
-            time: schedule.time,
-            status: schedule.status,
-            patient_name: schedule.patient_name,
-            patient_phone: schedule.patient_phone,
-            available: schedule.status === 'available'
-        }));
+        return schedules;
     }
 
     async checkDoctorAvailability(doctorId, date) {
