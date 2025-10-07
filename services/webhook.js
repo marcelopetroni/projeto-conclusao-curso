@@ -19,6 +19,15 @@ class WebhookService {
 		return context?.parameters || {};
 	}
 
+	normalizeIntentName(name) {
+		if (!name) return '';
+		return name
+			.normalize('NFD')
+			.replace(/[\u0300-\u036f]/g, '')
+			.toLowerCase()
+			.trim();
+	}
+
 	async processWebhook(requestBody) {
 		try {
 			const { queryResult, session } = requestBody
@@ -39,14 +48,19 @@ class WebhookService {
 	}
 
 	async handleIntent(intentName, parameters, requestBody, session) {
-		return intentName === 'Listar medicos' ? this.handleListAllDoctors()
-			: intentName === 'Listar horarios' ? this.handleGetSchedules(parameters, requestBody, session)
-			: intentName === 'Informar nome' ? this.handleInformName(requestBody, session)
-			: intentName === 'Informar celular' ? this.handleInformPhone(requestBody, session)
-			: intentName === 'Confirmar agendamento' ? this.handleConfirmAttendance(requestBody, session)
-			: intentName === 'Book Appointment' ? this.handleBookAppointment(parameters)
-			: intentName === 'Cancel Appointment' ? this.handleCancelAppointment(parameters)
-			: { fulfillmentText: 'Não entendi sua solicitação.' }
+		const normalized = this.normalizeIntentName(intentName);
+		if (normalized === 'listar medicos') return this.handleListAllDoctors();
+		if (normalized === 'listar horarios' || normalized === 'selecionar medico') {
+			return this.handleGetSchedules(parameters, requestBody, session);
+		}
+		if (normalized === 'informar nome') return this.handleInformName(requestBody, session);
+		if (normalized === 'informar celular' || normalized === 'informar telefone') {
+			return this.handleInformPhone(requestBody, session);
+		}
+		if (normalized === 'confirmar agendamento') return this.handleConfirmAttendance(requestBody, session);
+		if (normalized === 'book appointment') return this.handleBookAppointment(parameters);
+		if (normalized === 'cancel appointment') return this.handleCancelAppointment(parameters);
+		return { fulfillmentText: 'Não entendi sua solicitação.' };
 	}
 
 	async handleListAllDoctors() {
@@ -196,24 +210,48 @@ class WebhookService {
 		};
 	}
 
-	async handleConfirmAttendance(requestBody) {
-		const data = this.getContextParams(requestBody, "awaiting-confirmation");
+	async handleConfirmAttendance(requestBody, session) {
+		let data = this.getContextParams(requestBody, 'awaiting-confirmation') || {};
+		const parameters = requestBody.queryResult?.parameters || {};
+
+		data = {
+			doctorId: data.doctorId ?? parameters.doctorId ?? parameters.doctor_id ?? parameters.number,
+			scheduleId: data.scheduleId ?? parameters.scheduleId ?? parameters.schedule_id ?? parameters.number,
+			scheduleTime: data.scheduleTime ?? parameters.scheduleTime ?? parameters.schedule_time,
+			patientName: data.patientName ?? parameters.patientName ?? parameters.patient_name ?? parameters.any ?? parameters?.person?.name,
+			patientPhone: data.patientPhone ?? parameters.patientPhone ?? parameters['phone-number'] ?? parameters.phone_number ?? parameters.any,
+		};
 
 		if (!data.scheduleId || !data.patientName || !data.patientPhone) {
-			return { fulfillmentText: 'Dados incompletos para confirmar o agendamento. Por favor, comece novamente.' };
+			return {
+				fulfillmentText: 'Dados incompletos para confirmar o agendamento. Por favor, comece novamente.',
+				outputContexts: [
+					{
+						name: `${session}/contexts/awaiting-confirmation`,
+						lifespanCount: 2,
+						parameters: {
+							doctorId: data.doctorId,
+							scheduleId: data.scheduleId,
+							scheduleTime: data.scheduleTime,
+							patientName: data.patientName,
+							patientPhone: data.patientPhone,
+						},
+					},
+				],
+			};
 		}
 
 		try {
-			const doctor = await this.doctorService.getDoctorById(data.doctorId);
+			const doctor = data.doctorId ? await this.doctorService.getDoctorById(data.doctorId) : null;
 			const doctorName = doctor ? doctor.name : 'Médico não encontrado';
 
 			const result = await this.scheduleService.confirmAppointment(data.scheduleId, {
 				patient_name: data.patientName,
-				patient_phone: data.patientPhone
+				patient_phone: data.patientPhone,
 			});
 
 			return {
-				fulfillmentText: `🎉 Agendamento confirmado com sucesso!\n\n📋 Detalhes:\n• ID do agendamento: ${result.id}\n• Data: ${moment(result.date).format('DD/MM/YYYY')}\n• Horário: ${moment(result.time, 'HH:mm:ss').format('HH:mm')}\n• Médico: ${doctorName}\n• Paciente: ${result.patient_name}\n• Telefone: ${result.patient_phone}\n\nObrigado por usar nosso sistema! 🙏`
+				fulfillmentText: `🎉 Agendamento confirmado com sucesso!\n\n📋 Detalhes:\n• ID do agendamento: ${result.id}\n• Data: ${moment(result.date).format('DD/MM/YYYY')}\n• Horário: ${moment(result.time, 'HH:mm:ss').format('HH:mm')}\n• Médico: ${doctorName}\n• Paciente: ${result.patient_name}\n• Telefone: ${result.patient_phone}\n\nObrigado por usar nosso sistema! 🙏`,
 			};
 		} catch (error) {
 			console.error('Erro ao confirmar agendamento:', error);
