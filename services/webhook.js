@@ -298,7 +298,7 @@ class WebhookService {
 			this.clearSessionData(session);
 
 			return {
-				fulfillmentText: `✅ Agendamento confirmado com sucesso!\n\n📅 Data: ${moment(result.date).format('DD/MM/YYYY')}\n⏰ Horário: ${moment(result.time, 'HH:mm:ss').format('HH:mm')}\n👤 Paciente: ${data.patientName}\n📞 Telefone: ${data.patientPhone}\n\n🎫 Código do agendamento: ${result.id}\n\n. Até logo!`,
+				fulfillmentText: `✅ Agendamento confirmado com sucesso!\n\n📅 Data: ${moment(result.date).format('DD/MM/YYYY')}\n⏰ Horário: ${moment(result.time, 'HH:mm:ss').format('HH:mm')}\n👤 Paciente: ${data.patientName}\n📞 Telefone: ${data.patientPhone}\n\n🎫 Código do agendamento: ${result.id}.\n\nAté logo!`,
 				outputContexts: []
 			};
 		} catch (error) {
