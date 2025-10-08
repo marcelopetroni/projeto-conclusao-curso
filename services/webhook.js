@@ -6,6 +6,49 @@ class WebhookService {
 	constructor() {
 		this.doctorService = new DoctorService()
 		this.scheduleService = new ScheduleService()
+		this.sessionData = new Map()
+	}
+
+	setSessionData(session, newData) {
+		if (!session) {
+			return;
+		}
+
+		const existing = this.sessionData.get(session) || {}
+		const merged = { ...existing, ...newData }
+
+		this.sessionData.set(session, merged)
+
+		try {
+			console.log('[Webhook] setSessionData', { session, keys: Object.keys(merged) })
+		} catch {
+			return;
+		}
+
+	}
+
+	getSessionData(session) {
+		const data = this.sessionData.get(session) || {}
+
+		try {
+			console.log('[Webhook] getSessionData', { session, keys: Object.keys(data) })
+		} catch {
+			return;
+		}
+		return data
+	}
+
+	clearSessionData(session) {
+		if (!session) {
+			return;
+		}
+
+		this.sessionData.delete(session)
+		try {
+			console.log('[Webhook] clearSessionData', { session })
+		} catch {
+			return;
+		}
 	}
 
 	getContextParams(requestBody, contextName) {
@@ -22,6 +65,7 @@ class WebhookService {
 	async processWebhook(requestBody) {
 		try {
 			const { queryResult, session } = requestBody
+
 			if (!queryResult) {
 				throw new Error('queryResult ausente')
 			}
@@ -43,9 +87,8 @@ class WebhookService {
 			: intentName === 'Listar horarios' ? this.handleGetSchedules(parameters, requestBody, session)
 			: intentName === 'Informar nome' ? this.handleInformName(requestBody, session)
 			: intentName === 'Informar celular' ? this.handleInformPhone(requestBody, session)
-			: intentName === 'Confirmar agendamento' ? this.handleConfirmAttendance(requestBody, session)
-			: intentName === 'Book Appointment' ? this.handleBookAppointment(parameters)
-			: intentName === 'Cancel Appointment' ? this.handleCancelAppointment(parameters)
+			: intentName === 'Confirmar agendamento' ? this.handleConfirmAttendance(session)
+			: intentName === 'Cancelar agendamento' ? this.handleCancelAppointment(parameters)
 			: { fulfillmentText: 'Não entendi sua solicitação.' }
 	}
 
@@ -58,7 +101,7 @@ class WebhookService {
 
 		return {
 			fulfillmentText: `Perfeito! Aqui estão os médicos disponíveis. Digite o número correspondente para escolher:\n\n` +
-  			doctors.map((d, index) => `${index + 1}. ${d.name} - ${d.specialty}`).join('\n')
+				doctors.map((d, index) => `${index + 1}. ${d.name} - ${d.specialty}`).join('\n')
 		}
 	}
 
@@ -121,6 +164,13 @@ class WebhookService {
 				return { fulfillmentText: 'Horário inválido. Por favor, escolha um número da lista.' };
 			}
 
+			this.setSessionData(session, {
+				doctorId: previous.doctorId,
+				scheduleId: selectedSchedule.id,
+				scheduleTime: selectedSchedule.time,
+				scheduleDate: today
+			});
+
 			return {
 				fulfillmentText: `Perfeito! Você escolheu o horário ${moment(selectedSchedule.time, 'HH:mm:ss').format('HH:mm')}.\n\nAgora, por favor, me informe seu nome completo:`,
 				outputContexts: [
@@ -143,6 +193,7 @@ class WebhookService {
 
 	async handleInformName(requestBody, session) {
 		const parameters = requestBody.queryResult.parameters;
+
 		const previous = this.getContextParams(requestBody, "awaiting-name");
 
 		const patientName = parameters?.any || parameters?.patient_name || parameters?.person?.name;
@@ -150,6 +201,10 @@ class WebhookService {
 		if (!patientName) {
 			return { fulfillmentText: 'Por favor, informe seu nome completo.' };
 		}
+
+		this.setSessionData(session, {
+			patientName
+		});
 
 		return {
 			fulfillmentText: `Obrigado, ${patientName}! Agora, por favor, me informe seu telefone para contato:`,
@@ -171,6 +226,7 @@ class WebhookService {
 	async handleInformPhone(requestBody, session) {
 		const parameters = requestBody.queryResult.parameters;
 		const previous = this.getContextParams(requestBody, "awaiting-phone");
+		const sessionData = this.getSessionData(session);
 
 		const patientPhone = parameters?.['phone-number'] || parameters?.phone_number || parameters?.any;
 
@@ -178,12 +234,30 @@ class WebhookService {
 			return { fulfillmentText: 'Por favor, informe seu telefone.' };
 		}
 
+		this.setSessionData(session, {
+			patientPhone
+		});
+
+		const scheduleTime = sessionData.scheduleTime || previous.scheduleTime;
+		const patientName = sessionData.patientName || previous.patientName;
+
 		return {
-			fulfillmentText: `Perfeito! Vamos confirmar seu agendamento:\n\n📅 Data: ${moment().format('DD/MM/YYYY')}\n⏰ Horário: ${moment(previous.scheduleTime, 'HH:mm:ss').format('HH:mm')}\n👤 Nome: ${previous.patientName}\n📞 Telefone: ${patientPhone}\n\nConfirma o agendamento? (Digite "sim" para confirmar)`,
+			fulfillmentText: `Perfeito! Vamos confirmar seu agendamento:\n\n📅 Data: ${moment().format('DD/MM/YYYY')}\n⏰ Horário: ${moment(scheduleTime, 'HH:mm:ss').format('HH:mm')}\n👤 Nome: ${patientName}\n📞 Telefone: ${patientPhone}\n\nConfirma o agendamento? (Digite "sim" para confirmar)`,
 			outputContexts: [
 				{
 					name: `${session}/contexts/awaiting-confirmation`,
-					lifespanCount: 2,
+					lifespanCount: 5,
+					parameters: {
+						doctorId: previous.doctorId,
+						scheduleId: previous.scheduleId,
+						scheduleTime: previous.scheduleTime,
+						patientName: previous.patientName,
+						patientPhone
+					}
+				},
+				{
+					name: `${session}/contexts/booking-data`,
+					lifespanCount: 10,
 					parameters: {
 						doctorId: previous.doctorId,
 						scheduleId: previous.scheduleId,
@@ -196,48 +270,43 @@ class WebhookService {
 		};
 	}
 
-	async handleConfirmAttendance(requestBody) {
-		const data = this.getContextParams(requestBody, "awaiting-confirmation");
+	async handleConfirmAttendance(session) {
+		const sessionData = this.getSessionData(session);
+
+		const data = {
+			doctorId: sessionData.doctorId,
+			scheduleId: sessionData.scheduleId,
+			scheduleTime: sessionData.scheduleTime,
+			scheduleDate: sessionData.scheduleDate,
+			patientName: sessionData.patientName,
+			patientPhone: sessionData.patientPhone,
+		};
 
 		if (!data.scheduleId || !data.patientName || !data.patientPhone) {
-			return { fulfillmentText: 'Dados incompletos para confirmar o agendamento. Por favor, comece novamente.' };
+			return {
+				fulfillmentText: 'Dados incompletos para confirmar o agendamento. Por favor, comece novamente.',
+				outputContexts: []
+			};
 		}
 
 		try {
-			const doctor = await this.doctorService.getDoctorById(data.doctorId);
-			const doctorName = doctor ? doctor.name : 'Médico não encontrado';
-
 			const result = await this.scheduleService.confirmAppointment(data.scheduleId, {
 				patient_name: data.patientName,
 				patient_phone: data.patientPhone
 			});
 
+			this.clearSessionData(session);
+
 			return {
-				fulfillmentText: `🎉 Agendamento confirmado com sucesso!\n\n📋 Detalhes:\n• ID do agendamento: ${result.id}\n• Data: ${moment(result.date).format('DD/MM/YYYY')}\n• Horário: ${moment(result.time, 'HH:mm:ss').format('HH:mm')}\n• Médico: ${doctorName}\n• Paciente: ${result.patient_name}\n• Telefone: ${result.patient_phone}\n\nObrigado por usar nosso sistema! 🙏`
+				fulfillmentText: `✅ Agendamento confirmado com sucesso!\n\n📅 Data: ${moment(result.date).format('DD/MM/YYYY')}\n⏰ Horário: ${moment(result.time, 'HH:mm:ss').format('HH:mm')}\n👤 Paciente: ${data.patientName}\n📞 Telefone: ${data.patientPhone}\n\n🎫 Código do agendamento: ${result.id}\n\n. Até logo!`,
+				outputContexts: []
 			};
 		} catch (error) {
 			console.error('Erro ao confirmar agendamento:', error);
-			return { fulfillmentText: 'Erro ao confirmar o agendamento. Tente novamente mais tarde.' };
-		}
-	}
-
-	async handleBookAppointment(parameters) {
-		const { schedule_id, patient_name, patient_phone } = parameters
-
-		if (!schedule_id || !patient_name) {
-			return { fulfillmentText: 'Informe o horário e o nome do paciente.' }
-		}
-
-		try {
-			const result = await this.scheduleService.confirmAppointment(schedule_id, {
-				patient_name,
-				patient_phone
-			})
-
-			return { fulfillmentText: `Agendamento confirmado. ID: ${result.id} Data: ${result.date} Hora: ${result.time}` }
-		} catch (error) {
-			console.error('Erro ao confirmar agendamento:', error);
-			return { fulfillmentText: 'Erro ao confirmar o agendamento.' }
+			return {
+				fulfillmentText: `Desculpe, houve um erro ao confirmar o agendamento: ${error.message}. Por favor, tente novamente.`,
+				outputContexts: []
+			};
 		}
 	}
 
